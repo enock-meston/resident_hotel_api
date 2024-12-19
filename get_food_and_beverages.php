@@ -4,16 +4,16 @@ header("Content-Type: application/json");
 
 // Function to retrieve food and beverage data from the database
 function getFoodAndBeverages() {
-    global $conn;
+    global $con;
     $query = "SELECT * FROM food_and_beverages";
-    $result = mysqli_query($conn, $query);
+    $result = mysqli_query($con, $query);
     $foodItems = [];
 
     if ($result) {
         while ($row = mysqli_fetch_assoc($result)) {
             // Check if image exists and is not empty
             if ($row['image'] && file_exists($row['image'])) {
-                $row['image'] = 'http://' . $_SERVER['HTTP_HOST'] . '/' . $row['image']; // Return full path
+                $row['image'] = $row['image']; // Return full path
             } else {
                 $row['image'] = ''; // No image found, return empty string
             }

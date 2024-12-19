@@ -1,79 +1,56 @@
 <?php
 include 'includes/config.php';
-header("Content-Type: application/json");
-// Function to generate a unique file name for the uploaded image
-function generateImageName($file) {
-    $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-    $uniqueName = uniqid('food_', true) . '.' . $extension;
-    return $uniqueName;
-}
+// Send JSON response
+header('Content-Type: application/json');
 
-// Check if the request method is POST
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Get JSON data from the request body
-    $json = file_get_contents('php://input');
-    $data = json_decode($json, true);
+$response = ['success' => false, 'message' => ''];
 
-    if ($data) {
-        $response = [];
-        // Loop through the food items and save them to the database
-        foreach ($data['data'] as $food_item) {
-            $id = $food_item['id'];
-            $name = $food_item['name'];
-            $price = $food_item['price'];
-            $type = $food_item['type'];
-            $status = $food_item['status'];
+try {
+    // Check if request method is POST
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // Get fields from the request
+        $name = isset($_POST['name']) ? $_POST['name'] : null;
+        $price = isset($_POST['price']) ? (float)$_POST['price'] : null;
+        $type = isset($_POST['type']) ? $_POST['type'] : null;
 
-            // Process image upload
-            if (isset($food_item['image']) && !empty($food_item['image'])) {
-                // Assuming the image is base64 encoded
-                $imageData = base64_decode($food_item['image']);
-                $imageName = generateImageName($_FILES['image']); // Use a unique name
-                $imagePath = 'Uploaded/' . $imageName; // Save in the "Uploaded" folder
-
-                // Create the "Uploaded" directory if it doesn't exist
-                if (!file_exists('Uploaded')) {
-                    mkdir('Uploaded', 0777, true); // Create the folder with write permissions
-                }
-
-                // Save the image to the "Uploaded" folder
-                file_put_contents($imagePath, $imageData);
-
-                // Save the image path in the database
-                $image = $imagePath;
-            } else {
-                $image = ''; // If no image is provided, leave it empty
-            }
-
-            // Insert query
-            $query = "INSERT INTO food_and_beverages (name, price, type, image, status) 
-                      VALUES ('$id', '$name', '$price', '$type', '$image', '$status')";
-
-            if (mysqli_query($con, $query)) {
-                $response[] = [
-                    'success' => true,
-                    'message' => 'Food item saved successfully.'
-                ];
-            } else {
-                $response[] = [
-                    'success' => false,
-                    'message' => 'Failed to save food item.'
-                ];
-            }
+        // Validate required fields
+        if (empty($name) || empty($price) || empty($type)) {
+            // error message in json response
+            $response['message'] = "Please fill all the fields";
         }
 
-        // Return response in JSON format
-        echo json_encode(['response' => $response]);
+        // Handle image upload
+        $imagePath = null;
+        if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = 'Uploaded/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+
+            $imagePath = $uploadDir . basename($_FILES['image']['name']);
+            if (!move_uploaded_file($_FILES['image']['tmp_name'], $imagePath)) {
+                $response['message'] = "Failed to upload image";
+            }
+        }
+        $status = "available";
+        // Insert data into the database
+        $insertData = mysqli_query($con, "INSERT INTO `food_and_beverages`(`name`, `price`, `type`, `image`, `status`) 
+        VALUES ('$name','$price','$type','$imagePath','$status')");
+        // Check if data is inserted
+        if ($insertData) {
+            $response['success'] = true;
+            $response['message'] = "Food and Beverage added successfully";
+        } else {
+            $response['message'] = "Failed to add Food and Beverage";
+        }
+
     } else {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Invalid data.'
-        ]);
+        $response['message'] = "Invalid request";
     }
-} else {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Invalid request method.'
-    ]);
+} catch (Exception $e) {
+    $response['message'] = $e->getMessage();
 }
+
+
+echo json_encode($response);
 ?>
